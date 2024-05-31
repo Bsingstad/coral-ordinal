@@ -3,7 +3,7 @@ from tensorflow.python.keras.metrics import metrics_utils
 from tensorflow.keras import backend as K
 import numpy as np
 from tensorflow.keras import initializers
-from tensorflow.keras import ops
+from keras import ops
 
 from . import activations
 
