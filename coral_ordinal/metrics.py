@@ -3,7 +3,8 @@ from tensorflow.python.keras.metrics import metrics_utils
 from tensorflow.keras import backend as K
 import numpy as np
 from tensorflow.keras import initializers
-from tensorflow.python.keras import ops
+import keras
+from keras import ops
 
 from . import activations
 
@@ -324,105 +325,8 @@ class AUROC(tf.keras.metrics.Metric):
         base_config = super().get_config()
         return {**base_config, **config}
 
-    def interpolate_pr_auc(self):
-        """Interpolation formula inspired by section 4 of Davis & Goadrich 2006.
-
-        https://www.biostat.wisc.edu/~page/rocpr.pdf
-
-        Note here we derive & use a closed formula not present in the paper
-        as follows:
-
-            Precision = TP / (TP + FP) = TP / P
-
-        Modeling all of TP (true positive), FP (false positive) and their sum
-        P = TP + FP (predicted positive) as varying linearly within each
-        interval [A, B] between successive thresholds, we get
-
-            Precision slope = dTP / dP
-                            = (TP_B - TP_A) / (P_B - P_A)
-                            = (TP - TP_A) / (P - P_A)
-            Precision = (TP_A + slope * (P - P_A)) / P
-
-        The area within the interval is (slope / total_pos_weight) times
-
-            int_A^B{Precision.dP} = int_A^B{(TP_A + slope * (P - P_A)) * dP / P}
-            int_A^B{Precision.dP} = int_A^B{slope * dP + intercept * dP / P}
-
-        where intercept = TP_A - slope * P_A = TP_B - slope * P_B, resulting in
-
-            int_A^B{Precision.dP} = TP_B - TP_A + intercept * log(P_B / P_A)
-
-        Bringing back the factor (slope / total_pos_weight) we'd put aside, we
-        get
-
-            slope * [dTP + intercept *  log(P_B / P_A)] / total_pos_weight
-
-        where dTP == TP_B - TP_A.
-
-        Note that when P_A == 0 the above calculation simplifies into
-
-            int_A^B{Precision.dTP} = int_A^B{slope * dTP}
-                                   = slope * (TP_B - TP_A)
-
-        which is really equivalent to imputing constant precision throughout the
-        first bucket having >0 true positives.
-
-        Returns:
-            pr_auc: an approximation of the area under the P-R curve.
-        """
-
-        dtp = ops.subtract(
-            self.true_positives[: self.num_thresholds - 1],
-            self.true_positives[1:],
-        )
-        p = ops.add(self.true_positives, self.false_positives)
-        dp = ops.subtract(p[: self.num_thresholds - 1], p[1:])
-        prec_slope = ops.divide_no_nan(dtp, ops.maximum(dp, 0))
-        intercept = ops.subtract(
-            self.true_positives[1:], ops.multiply(prec_slope, p[1:])
-        )
-
-        safe_p_ratio = ops.where(
-            ops.logical_and(p[: self.num_thresholds - 1] > 0, p[1:] > 0),
-            ops.divide_no_nan(
-                p[: self.num_thresholds - 1], ops.maximum(p[1:], 0)
-            ),
-            ops.ones_like(p[1:]),
-        )
-
-        pr_auc_increment = ops.divide_no_nan(
-            ops.multiply(
-                prec_slope,
-                (ops.add(dtp, ops.multiply(intercept, ops.log(safe_p_ratio)))),
-            ),
-            ops.maximum(
-                ops.add(self.true_positives[1:], self.false_negatives[1:]), 0
-            ),
-        )
-
-        if self.multi_label:
-            by_label_auc = ops.sum(pr_auc_increment, axis=0)
-            if self.label_weights is None:
-                # Evenly weighted average of the label AUCs.
-                return ops.mean(by_label_auc)
-            else:
-                # Weighted average of the label AUCs.
-                return ops.divide_no_nan(
-                    ops.sum(ops.multiply(by_label_auc, self.label_weights)),
-                    ops.sum(self.label_weights),
-                )
-        else:
-            return ops.sum(pr_auc_increment)
 
     def result(self):
-        if (
-            self.curve == metrics_utils.AUCCurve.PR
-            and self.summation_method
-            == metrics_utils.AUCSummationMethod.INTERPOLATION
-        ):
-            # This use case is different and is handled separately.
-            return self.interpolate_pr_auc()
-
         # Set `x` and `y` values for the curves based on `curve` config.
         recall = ops.divide_no_nan(
             self.true_positives,
