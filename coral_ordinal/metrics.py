@@ -424,6 +424,8 @@ class auroc_new(tf.keras.metrics.Metric):
             initializer='zeros',
             name='auroc'
         )
+        self.num_classes = 4
+        self.multi_label = True
 
 
     def update_state(self, y_true, y_pred, sample_weight=None):
@@ -440,8 +442,8 @@ class auroc_new(tf.keras.metrics.Metric):
         y_true = tf.cast(y_true, y_pred.dtype)
 
         
-        y_true = _label_to_levels(tf.squeeze(y_true), self.num_labels)
-        auc_calc = tf.keras.metrics.AUC(multi_label=True, num_classes=4)
+        y_true = _label_to_levels(tf.squeeze(y_true), self.num_classes)
+        auc_calc = tf.keras.metrics.AUC(multi_label=self.multi_label, num_classes=self.num_classes)
         auc_calc.update_state(y_true,y_pred)
         values = auc_calc.result()
         self.auroc.assign(self.auroc + ops.sum(values))
