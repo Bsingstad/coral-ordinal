@@ -311,18 +311,6 @@ class AUROC(tf.keras.metrics.Metric):
 
 
 
-    def result(self):
-        return tf.math.divide_no_nan(self.maes, self.count)
-
-    def reset_state(self):
-        """Resets all of the metric state variables at the start of each epoch."""
-        K.batch_set_value([(v, 0) for v in self.variables])
-
-    def get_config(self):
-        """Returns the serializable config of the metric."""
-        config = {"threshold": self._threshold, "corn_logits": self._corn_logits}
-        base_config = super().get_config()
-        return {**base_config, **config}
 
 
     def result(self):
@@ -412,3 +400,52 @@ class AUROC(tf.keras.metrics.Metric):
             config["thresholds"] = self.thresholds[1:-1]
         base_config = super().get_config()
         return {**base_config, **config}
+
+
+
+
+@tf.keras.utils.register_keras_serializable(package="coral_ordinal")
+class auroc_new(tf.keras.metrics.Metric):
+    """Computes mean absolute error for ordinal labels."""
+
+    def __init__(
+        self,
+        name="auroc_new",
+        **kwargs
+
+    ):
+        """
+        AUC
+        """
+
+        super().__init__(name=name, **kwargs)
+        self.auroc = self.add_variable(
+            shape=(),
+            initializer='zeros',
+            name='auroc'
+        )
+
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        """Computes mean absolute error for ordinal labels.
+
+        Args:
+          y_true: Labels (int).
+          y_pred: Cumulative logits from CoralOrdinal layer.
+          sample_weight (optional): sample weights to weight absolute error.
+        """
+
+        # Predict the label as in Cao et al. - using cumulative probabilities.
+        y_pred = tf.convert_to_tensor(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+
+        
+        y_true = _label_to_levels(tf.squeeze(y_true), self.num_labels)
+        auc_calc = tf.keras.metrics.AUC(multi_label=True, num_classes=4)
+        auc_calc.update_state(y_true,y_pred)
+        values = auc_calc.result()
+        self.auroc.assign(self.auroc + ops.sum(values))
+
+    def result(self):
+        return self.auroc
+
