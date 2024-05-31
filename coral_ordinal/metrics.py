@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.metrics import metrics_utils
+from tensorflow.python.keras.metrics import metrics_utils
 from tensorflow.keras import backend as K
 import numpy as np
 from tensorflow.keras import initializers
