@@ -216,7 +216,7 @@ class AUROC(tf.keras.metrics.Metric):
                     f"Found rank {len(shape)}. "
                     f"Full shape received for `y_pred`: {shape}"
                 )
-            self._num_labels = shape[1]
+            self._num_labels = shape[1] - 1
             variable_shape = [self.num_thresholds, self._num_labels]
         else:
             variable_shape = [self.num_thresholds]
