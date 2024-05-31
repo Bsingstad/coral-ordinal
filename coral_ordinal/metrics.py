@@ -261,7 +261,7 @@ class AUROC(tf.keras.metrics.Metric):
         y_true = tf.cast(y_true, y_pred.dtype)
 
         
-        y_true = _label_to_levels(tf.squeeze(y_true), self.num_classes)
+        y_true = _label_to_levels(tf.squeeze(y_true), self.num_labels)
         if not self._built:
             self._build(y_pred.shape)
 
